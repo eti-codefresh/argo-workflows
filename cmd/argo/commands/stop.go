@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/argoproj/pkg/errors"
 	"github.com/spf13/cobra"
@@ -84,6 +85,8 @@ func stopWorkflows(ctx context.Context, serviceClient workflowpkg.WorkflowServic
 	}
 	var wfs wfv1.Workflows
 	if stopArgs.hasSelector() {
+
+		stopArgs.labelSelector = updateLabelSelctor(stopArgs.labelSelector)
 		wfs, err = listWorkflows(ctx, serviceClient, listFlags{
 			namespace: stopArgs.namespace,
 			fields:    stopArgs.fieldSelector,
@@ -127,4 +130,28 @@ func stopWorkflows(ctx context.Context, serviceClient workflowpkg.WorkflowServic
 		fmt.Printf("workflow %s stopped\n", wf.Name)
 	}
 	return nil
+}
+
+var finalPhaseLabelSelctors = []string{
+	"workflows.argoproj.io/phase!=Succeeded",
+	"workflows.argoproj.io/phase!=Failed",
+	"workflows.argoproj.io/phase!=Error",
+}
+
+// update stop label slactor with the missing selctors for not stoping workflows in final state
+func updateLabelSelctor(labelSelctor string) string {
+	for _, label := range finalPhaseLabelSelctors {
+		labelSelctor = ensureLabel(labelSelctor, label)
+	}
+	return labelSelctor
+}
+
+func ensureLabel(labelSelctor string, label string) string {
+	labels := strings.Split(labelSelctor, ",")
+	for _, l := range labels {
+		if l == label {
+			return labelSelctor
+		}
+	}
+	return labelSelctor + "," + label
 }
